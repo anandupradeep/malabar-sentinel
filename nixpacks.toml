@@ -1,0 +1,11 @@
+# Malabar Sentinel — Railway Nixpacks configuration
+# Railway auto-detects Python version from the project
+
+[phases.install]
+cmds = [
+  "pip install --upgrade pip",
+  "pip install -r server/requirements.txt"
+]
+
+[start]
+cmd = "cd server && uvicorn main:app --host 0.0.0.0 --port ${PORT:-9001}"

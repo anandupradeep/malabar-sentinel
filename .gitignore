@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+venv/
+.venv/
+env/
+ENV/
+
+# Database (don't commit the live DB)
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment secrets
+.env
+!.env.example
+
+# Agent build artifacts
+agent/main.spec
+installer/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Node (if any dashboard tooling)
+node_modules/
+
+# Windows shortcuts
+*.lnk
