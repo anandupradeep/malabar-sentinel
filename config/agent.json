@@ -1,0 +1,22 @@
+{
+  "agent": {
+    "server_url": "http://localhost:9001",
+    "api_key": "SOC-MASTER-KEY-2024",
+    "heartbeat_interval": 30,
+    "telemetry_batch_size": 50,
+    "log_level": "info"
+  },
+  "monitors": {
+    "process_monitor": true,
+    "network_monitor": true,
+    "file_monitor": true,
+    "usb_monitor": true,
+    "login_monitor": true,
+    "memory_monitor": true,
+    "ransomware_detector": true,
+    "hash_scanner": true,
+    "kernel_monitor": true
+  },
+  "sensitive_paths": [],
+  "note": "Add paths to monitor under sensitive_paths, e.g. C:\\Users\\admin\\Documents\\confidential"
+}

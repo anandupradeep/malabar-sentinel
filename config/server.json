@@ -1,0 +1,50 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 9001,
+    "log_level": "info",
+    "reload": false
+  },
+  "auth": {
+    "api_keys": [
+      "SOC-MASTER-KEY-2024",
+      "AGENT-KEY-ENDPOINT-001"
+    ],
+    "note": "CHANGE THESE IN PRODUCTION \u2014 use environment variables SOC_MASTER_KEY and AGENT_KEY"
+  },
+  "database": {
+    "url": "soc_platform.db",
+    "cleanup_days": 30
+  },
+  "ml": {
+    "enabled": true,
+    "anomaly_threshold": 0.85,
+    "retrain_interval_hours": 24
+  },
+  "siem": {
+    "correlation_interval_seconds": 30,
+    "max_events_per_endpoint": 500
+  },
+  "threat_intel": {
+    "refresh_interval_hours": 1,
+    "feeds": [
+      "AlienVault OTX",
+      "EmergingThreats",
+      "Ransomware Tracker",
+      "CrowdStrike",
+      "Shodan",
+      "AbuseCH"
+    ]
+  },
+  "alerts": {
+    "rate_limit_per_minute": 200,
+    "alarm_severity_threshold": "high",
+    "auto_geo_enrich": true
+  },
+  "project": {
+    "name": "Malabar Sentinel",
+    "version": "1.0.0",
+    "description": "Kerala Police Cyber Command \u2014 Endpoint Detection & Response Platform",
+    "organization": "Kerala Police Cybercrime Division"
+  }
+}

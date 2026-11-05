@@ -1,0 +1,33 @@
+{
+  "allowed_processes": [
+    "explorer.exe",
+    "svchost.exe",
+    "lsass.exe",
+    "chrome.exe",
+    "msedge.exe",
+    "winword.exe",
+    "excel.exe",
+    "teams.exe",
+    "outlook.exe",
+    "code.exe",
+    "python.exe",
+    "python3.exe",
+    "notepad.exe"
+  ],
+  "blocked_ips": [],
+  "allowed_usb": [],
+  "sensitive_paths": [],
+  "confidential_paths": [],
+  "monitoring": {
+    "process_monitor": true,
+    "network_monitor": true,
+    "file_monitor": true,
+    "usb_monitor": true,
+    "login_monitor": true,
+    "memory_monitor": true,
+    "ransomware_detector": true,
+    "hash_scanner": true,
+    "kernel_monitor": true,
+    "social_media_monitor": true
+  }
+}

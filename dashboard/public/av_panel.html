@@ -1,0 +1,502 @@
+<!--
+  DASHBOARD PANEL — Antivirus Scanning + Security Timeline + PDF Report
+  =======================================================================
+  Insert this block AFTER the existing Blocklist Manager card
+  (after the closing </div> of id="blocklist-card").
+
+  The block/unblock buttons in the Threat Detection Table call the EXISTING
+  issueCommand(epId, 'block_ip', …) and issueCommand(epId, 'block_url', …)
+  functions — no new blocking logic is added. All firewall and hosts-file
+  work continues to flow through network_blocking.py on the agent.
+-->
+
+<!-- ── Antivirus Scanner Card ─────────────────────────────────────────── -->
+<div class="card" id="av-card" style="border-color:#00f5c4;margin-top:12px">
+  <div class="ch">
+    <span class="ct">🛡 Antivirus Scanner</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span id="av-status-badge" style="font-family:monospace;font-size:9px;
+        color:#4a7a9b;border:1px solid #1a3f5c;padding:1px 6px;border-radius:2px">IDLE</span>
+    </div>
+  </div>
+
+  <!-- Scan buttons -->
+  <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:10px">
+    <button class="btn" onclick="avScan('quick')" id="btn-quick"
+      style="border-color:#00f5c4;color:#00f5c4">⚡ Quick Scan</button>
+    <button class="btn" onclick="avScan('full')"  id="btn-full"
+      style="border-color:#3db8ff;color:#3db8ff">🔍 Full Scan</button>
+    <button class="btn" onclick="avScanCustom()" id="btn-custom"
+      style="border-color:#ff8c42;color:#ff8c42">📁 Custom Scan</button>
+    <button class="btn red" onclick="avStop()" id="btn-stop-scan"
+      style="display:none">⏹ Stop Scan</button>
+    <button class="btn sm" onclick="avViewReport()"
+      style="margin-left:auto">📋 View Report</button>
+    <a id="av-dl-report" style="display:none" download>
+      <button class="btn sm" style="border-color:#c87aff;color:#c87aff">
+        ⬇ Download PDF</button></a>
+  </div>
+
+  <!-- Custom path row -->
+  <div id="av-custom-row" style="display:none;margin-bottom:8px;display:none">
+    <div style="display:flex;gap:6px">
+      <input type="text" id="av-custom-path" placeholder="Folder path, e.g. C:\Users\Documents"
+        style="flex:1;font-size:10px" onkeydown="if(event.key==='Enter')avScan('custom')"/>
+      <button class="btn sm" onclick="avScan('custom')"
+        style="border-color:#ff8c42;color:#ff8c42">Start</button>
+    </div>
+  </div>
+
+  <!-- Live progress -->
+  <div id="av-progress-wrap" style="display:none;margin-bottom:10px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+      <span style="font-family:monospace;font-size:9px;color:#4a7a9b">Scan Progress</span>
+      <span id="av-pct" style="font-family:monospace;font-size:9px;color:#00f5c4">0%</span>
+    </div>
+    <div style="background:#040b16;border:1px solid #0d2137;border-radius:3px;height:6px;overflow:hidden">
+      <div id="av-bar" style="height:100%;background:linear-gradient(90deg,#00f5c4,#3db8ff);
+        width:0%;transition:width .4s;border-radius:3px"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px">
+      <span style="font-family:monospace;font-size:8px;color:#3db8ff">
+        Files: <span id="av-files">0</span></span>
+      <span style="font-family:monospace;font-size:8px;color:#ff8c42">
+        Threats: <span id="av-threats-live">0</span></span>
+      <span id="av-current-file" style="font-family:monospace;font-size:8px;
+        color:#4a7a9b;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span>
+    </div>
+  </div>
+
+  <!-- Latest scan summary -->
+  <div id="av-summary" style="display:none;margin-bottom:10px">
+    <div style="font-size:9px;color:#4a7a9b;letter-spacing:1px;margin-bottom:5px">LAST SCAN SUMMARY</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+      <div class="av-kpi" id="avk-type">—</div>
+      <div class="av-kpi" id="avk-files">—</div>
+      <div class="av-kpi" id="avk-found">—</div>
+      <div class="av-kpi" id="avk-dur">—</div>
+      <div class="av-kpi" id="avk-status">—</div>
+      <div class="av-kpi" id="avk-time">—</div>
+    </div>
+  </div>
+
+  <!-- Threat detection table -->
+  <div id="av-threat-wrap" style="display:none">
+    <div style="font-size:9px;color:#ff3860;letter-spacing:1px;margin-bottom:5px">
+      ⚠ THREATS DETECTED</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:8px">
+        <thead>
+          <tr style="background:#0d2137;color:#4a7a9b">
+            <th style="padding:4px 6px;text-align:left">File Path</th>
+            <th style="padding:4px 6px;text-align:left">Threat Name</th>
+            <th style="padding:4px 6px;text-align:left">Sev</th>
+            <th style="padding:4px 6px;text-align:left">Action</th>
+            <th style="padding:4px 6px;text-align:left">Time</th>
+            <th style="padding:4px 6px;text-align:left">Block</th>
+          </tr>
+        </thead>
+        <tbody id="av-threat-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Historical scan table -->
+  <div style="margin-top:10px">
+    <div style="font-size:9px;color:#4a7a9b;letter-spacing:1px;margin-bottom:5px">SCAN HISTORY</div>
+    <div style="overflow-x:auto">
+      <table style="width:100%;border-collapse:collapse;font-family:monospace;font-size:8px">
+        <thead>
+          <tr style="background:#0d2137;color:#4a7a9b">
+            <th style="padding:4px 6px;text-align:left">Date</th>
+            <th style="padding:4px 6px;text-align:left">Type</th>
+            <th style="padding:4px 6px;text-align:left">Status</th>
+            <th style="padding:4px 6px;text-align:left">Threats</th>
+            <th style="padding:4px 6px;text-align:left">Duration</th>
+            <th style="padding:4px 6px;text-align:left">PDF</th>
+          </tr>
+        </thead>
+        <tbody id="av-history-tbody">
+          <tr><td colspan="6"
+            style="text-align:center;padding:12px 0;color:#1e3a52">No scans yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Security Timeline Card ─────────────────────────────────────────────── -->
+<div class="card" id="tl-card" style="border-color:#3db8ff;margin-top:12px">
+  <div class="ch">
+    <span class="ct">📅 Security Timeline</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span id="tl-count" style="font-family:monospace;font-size:9px;color:#3db8ff;
+        border:1px solid rgba(61,184,255,.3);padding:1px 6px;border-radius:2px">0 events</span>
+      <a id="tl-dl-btn" href="#" download>
+        <button class="btn sm" style="border-color:#3db8ff;color:#3db8ff"
+          onclick="tlDownloadPDF(event)">⬇ Download Timeline PDF</button></a>
+    </div>
+  </div>
+
+  <!-- Timeline filters -->
+  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">
+    <button class="tl-filter active" data-f="all"       onclick="tlFilter(this)">📋 All</button>
+    <button class="tl-filter"        data-f="threat"    onclick="tlFilter(this)">⚠ Threats</button>
+    <button class="tl-filter"        data-f="scan"      onclick="tlFilter(this)">🔍 Scans</button>
+    <button class="tl-filter"        data-f="sandbox"   onclick="tlFilter(this)">🧪 Sandbox</button>
+    <button class="tl-filter"        data-f="usb"       onclick="tlFilter(this)">📦 USB</button>
+    <button class="tl-filter"        data-f="response"  onclick="tlFilter(this)">🛑 Responses</button>
+    <button class="tl-filter"        data-f="block"     onclick="tlFilter(this)">🛡 Blocks</button>
+    <button class="tl-filter"        data-f="system"    onclick="tlFilter(this)">🟢 System</button>
+  </div>
+
+  <!-- Timeline list -->
+  <div id="tl-list" style="max-height:320px;overflow-y:auto;
+    border:1px solid #0d2137;border-radius:3px;background:#040b16;padding:4px 0">
+    <div id="tl-empty" style="text-align:center;padding:22px 0;
+      font-family:monospace;font-size:10px;color:#1e3a52">
+      No timeline events yet. Run a scan to populate this view.</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     STYLES  (injected once)
+ ═══════════════════════════════════════════════════════════════════════════ -->
+<style>
+.av-kpi{background:#040b16;border:1px solid #0d2137;border-radius:3px;
+  padding:5px 7px;font-family:monospace;font-size:8px;color:#4a7a9b;text-align:center}
+.av-kpi b{display:block;font-size:11px;color:#c8dff0;margin-bottom:1px}
+.tl-filter{background:transparent;border:1px solid #1a3f5c;color:#4a7a9b;
+  font-size:8px;padding:2px 7px;border-radius:2px;cursor:pointer;font-family:monospace}
+.tl-filter:hover{border-color:#3db8ff;color:#3db8ff}
+.tl-filter.active{border-color:#3db8ff;color:#3db8ff;background:rgba(61,184,255,.06)}
+.tl-row{display:flex;align-items:flex-start;gap:8px;padding:6px 10px;
+  border-bottom:1px solid #0a1827;font-family:monospace;font-size:9px}
+.tl-row:last-child{border-bottom:none}
+.tl-row:hover{background:rgba(61,184,255,.03)}
+.tl-ts{color:#1e3a52;flex-shrink:0;width:115px}
+.tl-icon{flex-shrink:0;width:18px;text-align:center}
+.tl-msg{color:#c8dff0;flex:1;word-break:break-all}
+.tl-sev{font-size:7px;padding:1px 4px;border-radius:2px;flex-shrink:0;border:1px solid;
+  font-family:monospace;text-transform:uppercase}
+.tl-sev-critical{color:#ff3860;border-color:rgba(255,56,96,.5)}
+.tl-sev-high    {color:#ff8c42;border-color:rgba(255,140,66,.5)}
+.tl-sev-medium  {color:#ffd700;border-color:rgba(255,215,0,.4)}
+.tl-sev-low     {color:#3db8ff;border-color:rgba(61,184,255,.4)}
+.tl-sev-info    {color:#4a7a9b;border-color:#1a3f5c}
+</style>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     JAVASCRIPT
+ ═══════════════════════════════════════════════════════════════════════════ -->
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+var AV = {
+  scanning:    false,
+  scanId:      null,
+  pollTimer:   null,
+  tlFilter:    'all',
+  tlEvents:    [],
+  progressPct: 0,
+};
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function _epId() {
+  return (window.S && S.selectedEndpoint) || ($('ep-sel') || {}).value || '';
+}
+function _apiBase() { return ''; }   // same origin
+
+async function _apiFetch(path, opts) {
+  try {
+    var r = await fetch(_apiBase() + path, opts || {});
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) { return null; }
+}
+
+// ── Scan control ──────────────────────────────────────────────────────────────
+function avScan(type) {
+  var epId = _epId();
+  if (!epId) { toast && toast('NO ENDPOINT','Select an endpoint first','warn'); return; }
+  if (type === 'custom') {
+    var row = $('av-custom-row');
+    if (row) { row.style.display = row.style.display === 'none' ? 'flex' : 'none'; }
+    return;
+  }
+  _doStartScan(epId, type, '');
+}
+
+function avScanCustom() {
+  var epId   = _epId();
+  var folder = ($('av-custom-path') || {}).value || '';
+  if (!epId)   { toast && toast('NO ENDPOINT','Select an endpoint first','warn'); return; }
+  if (!folder) { toast && toast('NO PATH','Enter a folder path','warn'); return; }
+  _doStartScan(epId, 'custom', folder);
+  var row = $('av-custom-row'); if (row) row.style.display = 'none';
+}
+
+async function _doStartScan(epId, type, folder) {
+  _avSetScanning(true, type);
+  var body = JSON.stringify({ endpoint_id: epId, scan_type: type, folder_path: folder || null });
+  var data = await _apiFetch('/api/scan/start', { method:'POST',
+    headers:{'Content-Type':'application/json'}, body: body });
+  if (!data) {
+    toast && toast('ERROR','Could not start scan','fail'); _avSetScanning(false); return;
+  }
+  AV.scanId = data.scan_id || null;
+  toast && toast('SCAN STARTED', type.toUpperCase() + ' scan initiated', 'ok');
+  _avStartPolling(epId);
+}
+
+async function avStop() {
+  var epId = _epId();
+  _avSetScanning(false);
+  await _apiFetch('/api/scan/stop', { method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ endpoint_id: epId }) });
+  toast && toast('STOPPED','Scan stop signal sent','info');
+}
+
+function _avSetScanning(on, type) {
+  AV.scanning = on;
+  var badge = $('av-status-badge');
+  var wrap  = $('av-progress-wrap');
+  var stop  = $('btn-stop-scan');
+  var btnQ  = $('btn-quick'), btnF = $('btn-full'), btnC = $('btn-custom');
+  if (badge) {
+    badge.textContent  = on ? (type||'').toUpperCase() + ' SCANNING…' : 'IDLE';
+    badge.style.color  = on ? '#00f5c4' : '#4a7a9b';
+    badge.style.borderColor = on ? 'rgba(0,245,196,.4)' : '#1a3f5c';
+  }
+  if (wrap)  wrap.style.display  = on ? 'block' : 'none';
+  if (stop)  stop.style.display  = on ? 'inline-flex' : 'none';
+  if (btnQ)  btnQ.disabled = on;
+  if (btnF)  btnF.disabled = on;
+  if (btnC)  btnC.disabled = on;
+  if (!on && AV.pollTimer) { clearInterval(AV.pollTimer); AV.pollTimer = null; }
+}
+
+function _avStartPolling(epId) {
+  if (AV.pollTimer) clearInterval(AV.pollTimer);
+  AV.pollTimer = setInterval(function() { _avPoll(epId); }, 3000);
+}
+
+async function _avPoll(epId) {
+  var data = await _apiFetch('/api/scan/progress/' + encodeURIComponent(epId));
+  if (!data) return;
+  if (!data.running) {
+    _avSetScanning(false);
+    avLoadReport(epId);
+    tlLoad(epId);
+    return;
+  }
+  // Fake a smooth progress bar (server doesn't have exact % for full scans)
+  AV.progressPct = Math.min(AV.progressPct + 3, 95);
+  _avUpdateBar(AV.progressPct, data.files_scanned || 0, data.threats_found || 0);
+}
+
+function _avUpdateBar(pct, files, threats) {
+  var bar = $('av-bar'), pctEl = $('av-pct');
+  var filesEl = $('av-files'), threatsEl = $('av-threats-live');
+  if (bar)     bar.style.width    = pct + '%';
+  if (pctEl)   pctEl.textContent  = Math.round(pct) + '%';
+  if (filesEl) filesEl.textContent = (files||0).toLocaleString();
+  if (threatsEl) threatsEl.textContent = threats || 0;
+}
+
+// ── Report loading ────────────────────────────────────────────────────────────
+async function avViewReport() {
+  var epId = _epId(); if (!epId) return;
+  await avLoadReport(epId);
+}
+
+async function avLoadReport(epId) {
+  var data = await _apiFetch('/api/scan/report/' + encodeURIComponent(epId));
+  if (!data || !data.scan) return;
+  var s = data.scan;
+
+  // Summary KPIs
+  _avKpi('avk-type',   'Type',     s.scan_type || '—');
+  _avKpi('avk-files',  'Files',    (s.files_scanned||0).toLocaleString());
+  _avKpi('avk-found',  'Threats',  s.threats_found || 0, s.threats_found > 0 ? '#ff3860' : '#00f5c4');
+  _avKpi('avk-dur',    'Duration', s.duration ? s.duration + 's' : '—');
+  _avKpi('avk-status', 'Status',   s.status || '—');
+  _avKpi('avk-time',   'Completed', _fmtTs(s.completed_at));
+  var wrap = $('av-summary'); if (wrap) wrap.style.display = 'block';
+
+  // Complete the progress bar
+  _avUpdateBar(100, s.files_scanned || 0, s.threats_found || 0);
+  AV.progressPct = 0;
+
+  // Threat table
+  _renderThreats(data.threats || [], epId);
+
+  // Download link
+  var dl = $('av-dl-report');
+  if (dl) {
+    dl.href     = '/api/scan/download/report/' + encodeURIComponent(epId);
+    dl.download = 'ScanReport_' + epId + '.pdf';
+    dl.style.display = 'inline';
+  }
+
+  // History
+  avLoadHistory(epId);
+}
+
+async function avLoadHistory(epId) {
+  var data = await _apiFetch('/api/scan/history/' + encodeURIComponent(epId));
+  var tbody = $('av-history-tbody'); if (!tbody) return;
+  var scans = (data || {}).scans || [];
+  if (!scans.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:12px 0;color:#1e3a52">No scans yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = scans.map(function(s) {
+    var tCol = s.threats_found > 0 ? '#ff3860' : '#00f5c4';
+    return '<tr style="border-bottom:1px solid #0a1827">'
+      + '<td style="padding:3px 6px;color:#4a7a9b">' + _fmtTs(s.started_at) + '</td>'
+      + '<td style="padding:3px 6px;color:#c8dff0">' + (s.scan_type||'—') + '</td>'
+      + '<td style="padding:3px 6px;color:#3db8ff">'  + (s.status||'—') + '</td>'
+      + '<td style="padding:3px 6px;color:'+tCol+';font-weight:bold">' + (s.threats_found||0) + '</td>'
+      + '<td style="padding:3px 6px;color:#4a7a9b">'  + (s.duration ? s.duration+'s' : '—') + '</td>'
+      + '<td style="padding:3px 6px"><a href="/api/scan/download/report/'
+      + encodeURIComponent(epId) + '?scan_id=' + s.id
+      + '" download style="color:#c87aff;font-size:8px">⬇ PDF</a></td>'
+      + '</tr>';
+  }).join('');
+}
+
+function _avKpi(id, label, val, valColor) {
+  var el = $(id); if (!el) return;
+  el.innerHTML = '<b style="color:'+(valColor||'#c8dff0')+'">' + val + '</b>' + label;
+}
+
+function _renderThreats(threats, epId) {
+  var wrap = $('av-threat-wrap'), tbody = $('av-threat-tbody');
+  if (!tbody) return;
+  if (!threats.length) { if(wrap) wrap.style.display='none'; return; }
+  if (wrap) wrap.style.display = 'block';
+
+  var sevColor = { critical:'#ff3860', high:'#ff8c42', medium:'#ffd700', low:'#3db8ff' };
+  tbody.innerHTML = threats.map(function(t) {
+    var sc = sevColor[(t.severity||'medium').toLowerCase()] || '#ffd700';
+    var fp = (t.file_path || '').split(/[\\/]/).pop();
+    return '<tr style="border-bottom:1px solid #0a1827">'
+      + '<td style="padding:3px 6px;color:#4a7a9b;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+_esc(t.file_path)+'">'
+      + _esc(fp) + '</td>'
+      + '<td style="padding:3px 6px;color:#c8dff0">' + _esc(t.threat_name||'—') + '</td>'
+      + '<td style="padding:3px 6px"><span style="color:'+sc+';font-weight:bold;font-size:8px">'
+      + (t.severity||'').toUpperCase() + '</span></td>'
+      + '<td style="padding:3px 6px;color:#4a7a9b">' + _esc(t.action_taken||'—') + '</td>'
+      + '<td style="padding:3px 6px;color:#4a7a9b">' + _fmtTs(t.detected_at) + '</td>'
+      // Block button — uses EXISTING issueCommand → network_blocking.IPBlocker pathway
+      + '<td style="padding:3px 6px">'
+      + '<button class="btn sm red" style="font-size:7px;padding:1px 5px" '
+      + 'onclick="avBlockThreat(\''+_esc(t.file_path||'')+'\',\''+epId+'\')">Block</button>'
+      + '</td>'
+      + '</tr>';
+  }).join('');
+}
+
+async function avBlockThreat(filePath, epId) {
+  // Extract a pseudo-hostname from the file path for display.
+  // Actual IP blocking uses the existing network_blocking pathway:
+  // issueCommand → command-queue → agent_core → network_blocking.IPBlocker
+  var ip = prompt('Block IP associated with this threat:\n' + filePath +
+                  '\n\nEnter IP address to block:');
+  if (!ip || !ip.trim()) return;
+  ip = ip.trim();
+  // Delegates entirely to existing block_ip command / network_blocking.py
+  if (typeof issueCommand === 'function') {
+    await issueCommand(epId, 'block_ip', { ip: ip });
+    toast && toast('BLOCKED', 'Block_IP queued: ' + ip, 'ok');
+  }
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────────
+async function tlLoad(epId, filter) {
+  epId   = epId   || _epId();
+  filter = filter || AV.tlFilter || 'all';
+  if (!epId) return;
+  var url = '/api/scan/timeline/' + encodeURIComponent(epId) + '?filter=' + filter + '&limit=200';
+  var data = await _apiFetch(url);
+  if (!data) return;
+  AV.tlEvents = data.events || [];
+  _renderTimeline(AV.tlEvents);
+
+  // Update download link
+  var dlBtn = $('tl-dl-btn');
+  if (dlBtn) dlBtn.href = '/api/scan/download/timeline/' + encodeURIComponent(epId);
+}
+
+function _renderTimeline(events) {
+  var list  = $('tl-list');
+  var empty = $('tl-empty');
+  var count = $('tl-count');
+  if (!list) return;
+
+  if (count) count.textContent = events.length + ' event' + (events.length!==1?'s':'');
+
+  if (!events.length) {
+    list.innerHTML = '';
+    if (empty) list.appendChild(empty);
+    return;
+  }
+
+  list.innerHTML = events.map(function(ev) {
+    var sev = (ev.severity || 'info').toLowerCase();
+    return '<div class="tl-row">'
+      + '<span class="tl-ts">' + _fmtTs(ev.created_at) + '</span>'
+      + '<span class="tl-icon">' + (ev.icon || '📌') + '</span>'
+      + '<span class="tl-msg">' + _esc(ev.event_message || '') + '</span>'
+      + '<span class="tl-sev tl-sev-' + sev + '">' + sev + '</span>'
+      + '</div>';
+  }).join('');
+}
+
+function tlFilter(btn) {
+  document.querySelectorAll('.tl-filter').forEach(function(b) {
+    b.classList.toggle('active', b === btn);
+  });
+  AV.tlFilter = btn.dataset.f || 'all';
+  tlLoad(_epId(), AV.tlFilter);
+}
+
+function tlDownloadPDF(e) {
+  var epId = _epId();
+  if (!epId) { e && e.preventDefault(); toast && toast('NO ENDPOINT','Select an endpoint first','warn'); return; }
+  var btn = $('tl-dl-btn');
+  if (btn) btn.href = '/api/scan/download/timeline/' + encodeURIComponent(epId);
+}
+
+// ── Utility ───────────────────────────────────────────────────────────────────
+function _fmtTs(ts) {
+  if (!ts) return '—';
+  try { return new Date(ts).toLocaleString(undefined,{hour12:false}); } catch(e){ return ts; }
+}
+function _esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+                  .replace(/"/g,'&quot;');
+}
+
+// ── Auto-load when an endpoint is selected ────────────────────────────────────
+// Hook into the existing endpoint selection change handler if present.
+(function() {
+  var orig = window.onEndpointChange;
+  window.onEndpointChange = function(epId) {
+    if (orig) orig(epId);
+    avLoadReport(epId);
+    tlLoad(epId);
+    // Refresh download links
+    var dl = $('av-dl-report');
+    if (dl) { dl.href = '/api/scan/download/report/' + encodeURIComponent(epId); }
+  };
+
+  // Also refresh every 15 s if a scan is not running
+  setInterval(function() {
+    var epId = _epId();
+    if (!epId || AV.scanning) return;
+    tlLoad(epId);
+  }, 15000);
+})();
+</script>
